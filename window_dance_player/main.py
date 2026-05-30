@@ -48,13 +48,13 @@ def _compositor_label() -> str:
     }
     return labels.get(COMPOSITOR, f"Wayland/{COMPOSITOR}")
 
-def getFiles(currentPath,fileList) -> None:
-    for file in currentPath:
-        filePath=Path(file)
-        if(filePath.is_dir()):
-            getFiles(filePath.iterdir(),fileList)
-        elif(filePath.exists()):
-            fileList.append(filePath)
+def get_files(current_path,file_list) -> None:
+    for file in current_path:
+        file_path=Path(file)
+        if(file_path.is_dir()):
+            get_files(file_path.iterdir(),file_list)
+        elif(file_path.exists()):
+            file_list.append(file_path)
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -72,7 +72,7 @@ def main() -> None:
     args = parser.parse_args()
     files=[]
 
-    getFiles(args.files,files)
+    get_files(args.files,files)
 
     if not files:
         print("Error: no valid audio files found.")
