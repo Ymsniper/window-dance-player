@@ -37,7 +37,7 @@ from ..platform        import detect as _det
 from ..platform        import hyprland as _hypr
 from ..platform        import sway as _sway
 from ..platform        import x11 as _x11_mod
-from ..platform.window import get_window_geometry, move_window, get_scale_factor
+from ..platform.window import get_window_geometry, move_window
 from ..logger          import DBG, WARN, ERR
 
 COMPOSITOR   = _det.COMPOSITOR
