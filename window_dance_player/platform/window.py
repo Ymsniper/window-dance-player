@@ -23,6 +23,8 @@ Windows   →  ctypes user32
 import ctypes as _ct
 import json
 import subprocess
+from pathlib import Path
+from configparser import ConfigParser
 
 from . import detect as _det
 from . import hyprland as _hypr
@@ -199,6 +201,25 @@ def get_screen_size() -> "tuple[int, int]":
 
     return 1920, 1080   # last-resort fallback
 
+# ── Window scale ───────────────────────────────────────────────────────────
+def get_scale_factor(window_id):
+    if PLATFORM == "Linux":
+        if window_id == "kde" or (
+            isinstance(window_id, str) and window_id.startswith("kde:")
+        ):
+            kwinrc_path =  Path.home() / ".config" / "kwinrc"
+            global_path = Path.home() / ".config" / "kdeglobals"
+            config_parser = ConfigParser()
+            try:
+                config_parser.read(kwinrc_path)
+                if 'Xwayland' in config_parser and 'Scale' in config_parser['Xwayland']:
+                    return float(config_parser['Xwayland']['Scale'])
+                config_parser.read(global_path)
+                if 'KScreen' in config_parser and 'ScaleFactor' in config_parser['KScreen']:
+                    return float(config_parser['KScreen']['ScaleFactor'])
+            except Exception:
+                pass
+    return 1.0
 
 # ── Window geometry ───────────────────────────────────────────────────────────
 

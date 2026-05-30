@@ -19,7 +19,7 @@ import time
 
 from .audio.analysis   import analyze_audio
 from .dance.dancer     import WindowDancer
-from .platform.window  import get_window_geometry
+from .platform.window  import get_window_geometry, get_scale_factor
 from .platform.detect  import COMPOSITOR, SESSION_TYPE
 from .logger           import DBG, ERR
 
@@ -126,7 +126,8 @@ class Player:
                 return
 
             _, _, ww, wh = get_window_geometry(window_id)
-            self.dancer  = WindowDancer(window_id, screen_w, screen_h, ww, wh)
+            screen_scale =  get_scale_factor(window_id)
+            self.dancer  = WindowDancer(window_id, screen_w, screen_h, ww, wh, screen_scale)
             self.dancer.enabled = self.dance_on
 
             beat_idx = 0

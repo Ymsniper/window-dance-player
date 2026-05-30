@@ -19,7 +19,7 @@ from .platform         import detect as _det
 from .platform         import hyprland as _hypr
 from .platform         import x11 as _x11
 from .platform.detect  import COMPOSITOR, PLATFORM, SESSION_TYPE
-from .platform.window  import get_screen_size, get_window_id
+from .platform.window  import get_screen_size, get_window_id, get_scale_factor
 from .player           import Player
 from .ui               import tui
 
@@ -89,6 +89,7 @@ def main() -> None:
 
     window_id = get_window_id()
     sw, sh    = get_screen_size()
+    scale =  get_scale_factor(window_id)
 
     if not window_id:
         print("\nWarning: could not detect window — dance disabled.")
@@ -100,7 +101,7 @@ def main() -> None:
         else:
             print("Linux X11: install xdotool → sudo pacman -S xdotool")
     else:
-        print(f" OK  (backend={window_id}, screen={sw}×{sh})")
+        print(f" OK  (backend={window_id}, screen={sw}×{sh}) scale={scale}")
 
     # ── Warm up IPC paths and fast X11 handle ────────────────────────────────
     if COMPOSITOR == "hyprland":

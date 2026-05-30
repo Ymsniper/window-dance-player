@@ -37,7 +37,7 @@ from ..platform        import detect as _det
 from ..platform        import hyprland as _hypr
 from ..platform        import sway as _sway
 from ..platform        import x11 as _x11_mod
-from ..platform.window import get_window_geometry, move_window
+from ..platform.window import get_window_geometry, move_window, get_scale_factor
 from ..logger          import DBG, WARN, ERR
 
 COMPOSITOR   = _det.COMPOSITOR
@@ -54,6 +54,7 @@ class WindowDancer:
         screen_h: int,
         win_w: int,
         win_h: int,
+        scale: float
     ) -> None:
         self.window_id   = window_id
         self.sw, self.sh = screen_w, screen_h
@@ -63,6 +64,7 @@ class WindowDancer:
         self.pattern     = PATTERNS[0]
         self.enabled     = True
         self.angle       = 0.0
+        self.screen_scale = scale
 
         # Yaris physics (non-KDE path)
         self._phys:        "YarisPhysics | None"  = None
@@ -337,6 +339,12 @@ class WindowDancer:
         x, y = self._next_position()
         x = max(0, min(int(x), self.sw - self.ww - 10))
         y = max(0, min(int(y), self.sh - self.wh - 10))
+        if(self.screen_scale>1):
+            x=int(x*(self.screen_scale/10))
+            y=int(y*(self.screen_scale/10))
+        elif(self.screen_scale<1):
+            x=int(x/self.screen_scale)
+            y=int(y/self.screen_scale)
         move_window(self.window_id, x, y)
 
     # ── Position calculators ──────────────────────────────────────────────────
