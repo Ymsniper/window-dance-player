@@ -12,6 +12,7 @@ import curses
 import os
 import sys
 import time
+import mimetypes
 from pathlib import Path
 
 from .logger           import DBG
@@ -48,12 +49,20 @@ def _compositor_label() -> str:
     }
     return labels.get(COMPOSITOR, f"Wayland/{COMPOSITOR}")
 
+def is_valid_audio(file) -> bool:
+    extension=file.suffix
+    valid_extensions=[".mp3",".ogg",".wav",".flac"]
+    if(not extension.lower() in valid_extensions):
+        mime_type = mimetypes.guess_type(file)[0]
+        return "audio" in mime_type
+    return True
+ 
 def get_files(current_path,file_list) -> None:
     for file in current_path:
         file_path=Path(file)
         if(file_path.is_dir()):
             get_files(file_path.iterdir(),file_list)
-        elif(file_path.exists()):
+        elif(file_path.exists() and is_valid_audio(file_path)):
             file_list.append(file_path)
 
 def main() -> None:
