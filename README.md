@@ -175,6 +175,7 @@ python -m window_dance_player song.mp3
 
 # Playlist (auto-advances)
 python -m window_dance_player *.mp3
+python -m window_dance_player path/to/playlist/
 
 # Or, after pip install:
 window-dance-player song.mp3 song2.flac song3.wav
