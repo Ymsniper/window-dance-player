@@ -57,11 +57,17 @@ def is_valid_audio(file) -> bool:
         return mime_type is not None and "audio" in mime_type
     return True
  
-def get_files(current_path,file_list) -> None:
+def get_files(current_path,file_list,found_directories=set()) -> None:
     for file in current_path:
         file_path=Path(file)
         if(file_path.is_dir()):
-            get_files(file_path.iterdir(),file_list)
+            #Recursively enter directory if it has not been entered before
+            if(file_path.is_symlink()):
+                file_path=file_path.readlink()
+            if(not file_path in found_directories):
+                found_directories.add(file_path)
+                get_files(file_path.iterdir(),file_list,found_directories)
+        
         elif(file_path.exists() and is_valid_audio(file_path)):
             file_list.append(file_path)
 
