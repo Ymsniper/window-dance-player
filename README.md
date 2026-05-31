@@ -14,7 +14,7 @@ https://github.com/user-attachments/assets/74b4d266-2e1a-4cf9-ba64-93825e91643f
 
 https://github.com/user-attachments/assets/6ec28f4c-0f50-47d0-9fd7-eb4135a27d30
 
-
+https://github.com/user-attachments/assets/6799eb8c-3f60-4879-961e-0bef3fbf45c5
 
 
 A terminal music player that **moves and resizes your terminal window in sync
