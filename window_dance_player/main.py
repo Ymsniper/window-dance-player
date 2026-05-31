@@ -20,7 +20,7 @@ from .platform         import detect as _det
 from .platform         import hyprland as _hypr
 from .platform         import x11 as _x11
 from .platform.detect  import COMPOSITOR, PLATFORM, SESSION_TYPE
-from .platform.window  import get_screen_size, get_window_id
+from .platform.window  import get_screen_size, get_window_id, get_scale_factor
 from .player           import Player
 from .ui               import tui
 
@@ -70,13 +70,24 @@ def main() -> None:
         description="Window Dance Player — moves your terminal window on the beat",
         epilog=(
             "Controls: SPACE play/pause · N next · P prev · "
-            "D toggle dance · 1-6 pattern · Q quit"
+            "D toggle dance · 1-6 pattern · I image overlay · Q quit"
         ),
     )
     parser.add_argument(
         "files",
         nargs="+",
         help="Audio files to play (MP3, WAV, FLAC, OGG, …)",
+    )
+    parser.add_argument(
+        "--image", "-i",
+        metavar="FILE",
+        default=None,
+        help=(
+            "Image to display as a full-terminal overlay that warps with Yaris "
+            "physics (PNG, JPEG, WEBP, GIF, … — any format Pillow supports). "
+            "Requires: pip install Pillow --break-system-packages. "
+            "You can also add / remove the image at runtime with the [I] key."
+        ),
     )
     args = parser.parse_args()
     files=[]
@@ -86,6 +97,15 @@ def main() -> None:
     if not files:
         print("Error: no valid audio files found.")
         sys.exit(1)
+
+    # ── Resolve image path (--image flag) ─────────────────────────────────────
+    image_path: "Path | None" = None
+    if args.image:
+        p = Path(args.image).expanduser()
+        if not p.exists():
+            print(f"Warning: --image path not found: {p}  (overlay disabled)")
+        else:
+            image_path = p
 
     missing = check_deps()
     if missing:
@@ -101,12 +121,15 @@ def main() -> None:
     DBG(f"HYPRLAND_INSTANCE_SIGNATURE={os.environ.get('HYPRLAND_INSTANCE_SIGNATURE', '<not set>')!r}")
     DBG(f"XDG_RUNTIME_DIR={os.environ.get('XDG_RUNTIME_DIR', '<not set>')!r}")
     DBG(f"XDG_CURRENT_DESKTOP={os.environ.get('XDG_CURRENT_DESKTOP', '<not set>')!r}")
+    if image_path:
+        DBG(f"image_path={image_path!r}")
 
     print(f"Session : {_compositor_label()}")
     print("Getting window info…", end="", flush=True)
 
     window_id = get_window_id()
     sw, sh    = get_screen_size()
+    scale     = get_scale_factor()
 
     if not window_id:
         print("\nWarning: could not detect window — dance disabled.")
@@ -118,7 +141,19 @@ def main() -> None:
         else:
             print("Linux X11: install xdotool → sudo pacman -S xdotool")
     else:
-        print(f" OK  (backend={window_id}, screen={sw}×{sh})")
+        scale_s = f"  scale={scale:.2f}×" if scale != 1.0 else ""
+        print(f" OK  (backend={window_id}, screen={sw}×{sh}{scale_s})")
+
+    # ── Image overlay dependency hint ─────────────────────────────────────────
+    if image_path is not None:
+        try:
+            from PIL import Image  # noqa: F401
+        except ImportError:
+            print(
+                "⚠  Pillow not found — image overlay disabled.\n"
+                "   pip install Pillow --break-system-packages"
+            )
+            image_path = None
 
     # ── Warm up IPC paths and fast X11 handle ────────────────────────────────
     if COMPOSITOR == "hyprland":
@@ -147,7 +182,7 @@ def main() -> None:
 
     player = Player(files)
     try:
-        curses.wrapper(tui, player, window_id, sw, sh)
+        curses.wrapper(tui, player, window_id, sw, sh, image_path)
     except KeyboardInterrupt:
         player.stop()
     finally:

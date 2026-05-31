@@ -54,15 +54,24 @@ class WindowDancer:
         screen_h: int,
         win_w: int,
         win_h: int,
+        scale: float = 1.0,
     ) -> None:
-        self.window_id   = window_id
-        self.sw, self.sh = screen_w, screen_h
-        self.ww, self.wh = win_w, win_h
-        self.beat_count  = 0
-        self.pattern_idx = 0
-        self.pattern     = PATTERNS[0]
-        self.enabled     = True
-        self.angle       = 0.0
+        self.window_id    = window_id
+        self.sw, self.sh  = screen_w, screen_h
+        self.ww, self.wh  = win_w, win_h
+        self.beat_count   = 0
+        self.pattern_idx  = 0
+        self.pattern      = PATTERNS[0]
+        self.enabled      = True
+        self.angle        = 0.0
+
+        # On KDE Wayland, xrandr returns physical pixels but KWin's
+        # frameGeometry API uses logical pixels (physical ÷ scale).
+        # All position calculations and bounds-clamping use these logical
+        # dimensions so the window never exits the screen at any scale %.
+        self.screen_scale = max(0.1, scale)
+        self.lsw          = int(screen_w / self.screen_scale)
+        self.lsh          = int(screen_h / self.screen_scale)
 
         # Yaris physics (non-KDE path)
         self._phys:        "YarisPhysics | None"  = None
@@ -92,10 +101,16 @@ class WindowDancer:
     def _start_physics(self) -> None:
         self._stop_physics()
         x, y, _, _ = get_window_geometry(self.window_id)
+        # get_window_geometry falls back to (100,100,800,500) for KDE Wayland.
+        # If that fallback is detected, start the physics from screen centre
+        # so the first bounce launches from a sensible position.
+        if x == 100 and y == 100 and str(self.window_id).startswith("kde"):
+            x = max(0, (self.lsw - self.ww) // 2)
+            y = max(0, (self.lsh - self.wh) // 2)
         self._phys = YarisPhysics(
             base_x=float(x), base_y=float(y),
-            sw=self.sw, sh=self.sh,
-            ww=self.ww, wh=self.wh,
+            sw=self.lsw, sh=self.lsh,   # logical screen bounds
+            ww=self.ww,  wh=self.wh,
         )
         self._phys_stop.clear()
         self._phys_thread = threading.Thread(target=self._physics_loop, daemon=True)
@@ -237,6 +252,27 @@ class WindowDancer:
     def pattern_label(self) -> str:
         return PATTERN_LABELS.get(self.pattern, self.pattern)
 
+    # ── Live physics scale (used by image overlay) ────────────────────────────
+
+    @property
+    def yaris_scale(self) -> "tuple[float, float]":
+        """
+        Return the live ``(scale_y, scale_x)`` from the Yaris physics engine.
+
+        Thread-safe: acquires ``_phys._lock`` for the read.
+
+        Returns ``(1.0, 1.0)`` when:
+        - the current pattern is not ``"yaris"``
+        - the physics thread has not started yet
+        - running on the KDE keyframe path (no real-time ``_phys`` object)
+        """
+        if self._phys is not None and self.pattern == "yaris":
+            with self._phys._lock:
+                sy = float(self._phys.scale_y)
+            sx = max(0.6, min(2.0 - sy, 1.4))
+            return sy, sx
+        return 1.0, 1.0
+
     # ── Pattern selection ─────────────────────────────────────────────────────
 
     def set_pattern(self, idx: int) -> None:
@@ -267,7 +303,7 @@ class WindowDancer:
         """
         self._cancel_keyframe_timers()
         wid    = self.window_id
-        sw, sh = self.sw, self.sh
+        sw, sh = self.lsw, self.lsh   # logical screen bounds
         try:
             bx, by, bw, bh = get_window_geometry(wid)
         except Exception:
@@ -335,15 +371,17 @@ class WindowDancer:
             return
 
         x, y = self._next_position()
-        x = max(0, min(int(x), self.sw - self.ww - 10))
-        y = max(0, min(int(y), self.sh - self.wh - 10))
+        # Clamp to logical screen bounds — on KDE Wayland the compositor
+        # expects logical coords (physical ÷ scale), so we use lsw/lsh here.
+        x = max(0, min(int(x), self.lsw - self.ww - 10))
+        y = max(0, min(int(y), self.lsh - self.wh - 10))
         move_window(self.window_id, x, y)
 
     # ── Position calculators ──────────────────────────────────────────────────
 
     def _next_position(self) -> "tuple[float, float]":
         b         = self.beat_count
-        sw, sh    = self.sw, self.sh
+        sw, sh    = self.lsw, self.lsh   # logical screen dimensions
         ww, wh    = self.ww, self.wh
         cx        = sw / 2 - ww / 2
         cy        = sh / 2 - wh / 2

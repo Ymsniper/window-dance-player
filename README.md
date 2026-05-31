@@ -35,6 +35,11 @@ Sway, KDE Plasma Wayland, and X11 out of the box.
 - **YARIS MODE physics engine** — underdamped spring simulation with
   gravity, launch velocity, landing squash, and horizontal wobble;
   runs at display refresh rate (up to 360 Hz)
+- **🖼️ Image overlay** — display any image (PNG, JPEG, WEBP, GIF, …)
+  as a full-terminal background that warps in real-time with the Yaris
+  physics; bilinear numpy warp fills the canvas edge-to-edge with zero
+  black bars; beat flash brightens the image on every detected beat;
+  load via `--image` at startup or toggle live with `I`
 - **Zero-subprocess hot path** — Hyprland IPC via raw Unix socket,
   Sway via i3 binary protocol, X11 via libX11 ctypes; no process
   fork per frame
@@ -102,6 +107,7 @@ terminal window float:
 librosa >= 0.10.0
 pygame  >= 2.5.0
 numpy   >= 1.24.0
+Pillow  >= 9.0.0    # optional — required for image overlay (--image / I key)
 ```
 
 ### System packages
@@ -133,6 +139,9 @@ pip install librosa --break-system-packages
 
 # 4. X11 users only
 sudo pacman -S xdotool
+
+# 5. Optional — image overlay feature (--image flag / I key)
+sudo pacman -S python-pillow
 ```
 
 ### Ubuntu / Debian
@@ -177,8 +186,12 @@ python -m window_dance_player song.mp3
 python -m window_dance_player *.mp3
 python -m window_dance_player path/to/playlist/
 
+# With image overlay (warps with Yaris physics)
+python -m window_dance_player --image cover.jpg song.mp3
+
 # Or, after pip install:
 window-dance-player song.mp3 song2.flac song3.wav
+window-dance-player --image cover.png *.flac
 ```
 
 ### Controls
@@ -195,6 +208,7 @@ window-dance-player song.mp3 song2.flac song3.wav
 | `4` | Pattern: Figure-8 |
 | `5` | Pattern: Random Jump |
 | `6` | 🚗 YARIS MODE |
+| `I` | Add / remove image overlay |
 | `Q` | Quit |
 
 ---
@@ -231,7 +245,13 @@ window_dance_player/
 ├── logger.py            Centralised DBG/WARN/ERR → wdp_debug.log
 ├── main.py              Argument parsing, startup checks, curses launch
 ├── player.py            Audio playback + beat-watcher thread
-├── ui.py                Curses TUI (~25 FPS render loop)
+├── ui.py                Curses TUI + flicker-free image overlay mode (~25 FPS)
+│
+├── image/
+│   ├── overlay.py       ImageOverlay: bilinear numpy warp, half-block renderer,
+│   │                    beat flash, Synchronized Output (DEC 2026), single
+│   │                    atomic os.write() per frame — zero tearing
+│   └── warp.py          ImageWarp: earlier mesh-transform prototype (reference)
 │
 ├── platform/
 │   ├── detect.py        PLATFORM / SESSION_TYPE / COMPOSITOR constants
@@ -322,9 +342,11 @@ tail -f wdp_debug.log   # live debug output while running
 3. Make your changes with clear, focused commits
 4. Open a pull request
 
-The module split is intentional — each file in `platform/` is a
-self-contained backend. Adding a new compositor means adding one file
-there and a branch in `platform/window.py`.
+The module split is intentional — each subdirectory is a self-contained
+feature package. Adding a new compositor means adding one file in
+`platform/` and a branch in `platform/window.py`. The `image/` package
+follows the same pattern: `image/overlay.py` is the active renderer and
+can be swapped or extended independently of the rest of the UI.
 
 ---
 

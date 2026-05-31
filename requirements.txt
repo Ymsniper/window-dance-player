@@ -9,3 +9,8 @@
 librosa>=0.10.0
 pygame>=2.5.0
 numpy>=1.24.0
+
+# Optional — required only for the image overlay feature ([I] key / --image flag)
+# CachyOS / Arch:  sudo pacman -S python-pillow
+# other Linux:     pip install Pillow --break-system-packages
+Pillow>=9.0.0

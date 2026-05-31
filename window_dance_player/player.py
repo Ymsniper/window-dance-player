@@ -19,9 +19,31 @@ import time
 
 from .audio.analysis   import analyze_audio
 from .dance.dancer     import WindowDancer
-from .platform.window  import get_window_geometry
+from .platform.window  import get_window_geometry, get_scale_factor, move_window
 from .platform.detect  import COMPOSITOR, SESSION_TYPE
 from .logger           import DBG, ERR
+
+
+def _optimal_dance_size(lsw: int, lsh: int) -> "tuple[int, int]":
+    """
+    Return (width, height) — the largest terminal window that lets every
+    built-in dance pattern sweep the full screen without any part of the
+    window ever exiting the display.
+
+    The binding constraint is the circle / figure-8 orbit radius
+        r = min(lsw, lsh) * 0.28
+    For a window centred at screen-centre the furthest its right edge
+    ever reaches is  lsw/2 + ww/2 + r.  Keeping that ≤ lsw gives:
+        ww ≤ lsw − 2r       (same logic applies to height)
+
+    A small safety margin is subtracted so the window never even grazes
+    the edge, regardless of integer-rounding in the position clamp.
+    """
+    MARGIN = 24          # px safety pad on each side
+    r   = min(lsw, lsh) * 0.28
+    ww  = max(320, int(lsw - 2 * r) - MARGIN)
+    wh  = max(180, int(lsh - 2 * r) - MARGIN)
+    return ww, wh
 
 
 class Player:
@@ -69,6 +91,20 @@ class Player:
         if not self.playing:
             return 0.0
         return time.time() - self._start_time
+
+    @property
+    def yaris_scale(self) -> "tuple[float, float]":
+        """
+        Live ``(scale_y, scale_x)`` from Yaris physics, forwarded from the dancer.
+
+        Returns ``(1.0, 1.0)`` when no dancer is active or pattern ≠ yaris.
+        Callers (e.g. the image overlay) use this to warp the image in sync
+        with the window squash / bounce animation.
+        """
+        d = self.dancer
+        if d is not None:
+            return d.yaris_scale
+        return 1.0, 1.0
 
     # ── Playback control ──────────────────────────────────────────────────────
 
@@ -125,8 +161,33 @@ class Player:
             if self._stop_evt.is_set() or self.error:
                 return
 
-            _, _, ww, wh = get_window_geometry(window_id)
-            self.dancer  = WindowDancer(window_id, screen_w, screen_h, ww, wh)
+            # ── Detect display scale (KDE Wayland: physical ÷ scale = logical) ──
+            scale = get_scale_factor()
+            lsw   = int(screen_w / scale) if scale > 0.1 else screen_w
+            lsh   = int(screen_h / scale) if scale > 0.1 else screen_h
+
+            # ── Auto-resize window to the perfect dance size ───────────────────
+            # Calculates the largest window that lets every pattern sweep
+            # the whole screen without any part exiting the display edge.
+            dance_ww, dance_wh = _optimal_dance_size(lsw, lsh)
+            dance_cx = max(0, (lsw - dance_ww) // 2)
+            dance_cy = max(0, (lsh - dance_wh) // 2)
+            move_window(window_id, dance_cx, dance_cy, dance_ww, dance_wh)
+            time.sleep(0.4)   # wait for compositor to apply the resize
+
+            # Re-read actual geometry; use computed values if KDE falls back
+            # to its (100,100,800,500) default (KDE geometry queries need
+            # xdotool which isn't available under pure Wayland).
+            _, _, cur_ww, cur_wh = get_window_geometry(window_id)
+            if cur_ww == 800 and cur_wh == 500:
+                # Almost certainly the fallback — use our computed size
+                ww, wh = dance_ww, dance_wh
+            else:
+                ww, wh = cur_ww, cur_wh
+
+            self.dancer = WindowDancer(
+                window_id, screen_w, screen_h, ww, wh, scale=scale
+            )
             self.dancer.enabled = self.dance_on
 
             beat_idx = 0

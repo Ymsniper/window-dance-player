@@ -200,6 +200,54 @@ def get_screen_size() -> "tuple[int, int]":
     return 1920, 1080   # last-resort fallback
 
 
+# ── Screen scale factor ────────────────────────────────────────────────────────
+
+def get_scale_factor() -> float:
+    """
+    Return the KDE display scale factor (1.0 on non-KDE or when unset).
+
+    On KDE Plasma Wayland, xrandr (via XWayland) reports the **physical**
+    pixel resolution, but KWin's frameGeometry API uses **logical** pixels
+    (physical / scale).  Reading the scale here lets callers convert:
+
+        logical_size = physical_size / get_scale_factor()
+
+    Priority:
+      1. kwinrc  → [Xwayland]  Scale       (set by KDE display settings)
+      2. kdeglobals → [KScreen] ScaleFactor (older KDE / fallback)
+      3. 1.0  (no scaling or non-KDE platform)
+    """
+    if PLATFORM != "Linux" or COMPOSITOR != "kde":
+        return 1.0
+    from pathlib import Path
+    from configparser import ConfigParser
+
+    # kwinrc: preferred — written by KDE display settings on Wayland
+    try:
+        cp = ConfigParser()
+        cp.read(str(Path.home() / ".config" / "kwinrc"))
+        if "Xwayland" in cp and "Scale" in cp["Xwayland"]:
+            v = float(cp["Xwayland"]["Scale"])
+            DBG(f"get_scale_factor: kwinrc [Xwayland] Scale={v}")
+            return v
+    except Exception as exc:
+        DBG(f"get_scale_factor: kwinrc read failed: {exc}")
+
+    # kdeglobals: fallback for older KDE setups
+    try:
+        cp2 = ConfigParser()
+        cp2.read(str(Path.home() / ".config" / "kdeglobals"))
+        if "KScreen" in cp2 and "ScaleFactor" in cp2["KScreen"]:
+            v = float(cp2["KScreen"]["ScaleFactor"])
+            DBG(f"get_scale_factor: kdeglobals [KScreen] ScaleFactor={v}")
+            return v
+    except Exception as exc:
+        DBG(f"get_scale_factor: kdeglobals read failed: {exc}")
+
+    DBG("get_scale_factor: no KDE scale config found, using 1.0")
+    return 1.0
+
+
 # ── Window geometry ───────────────────────────────────────────────────────────
 
 def get_window_geometry(window_id) -> "tuple[int, int, int, int]":
