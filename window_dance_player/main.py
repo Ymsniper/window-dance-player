@@ -12,6 +12,7 @@ import curses
 import os
 import sys
 import time
+import mimetypes
 from pathlib import Path
 
 from .logger           import DBG
@@ -48,6 +49,27 @@ def _compositor_label() -> str:
     }
     return labels.get(COMPOSITOR, f"Wayland/{COMPOSITOR}")
 
+def is_valid_audio(file) -> bool:
+    extension=file.suffix
+    valid_extensions=[".mp3",".ogg",".wav",".flac"]
+    if(not extension.lower() in valid_extensions):
+        mime_type = mimetypes.guess_type(file)[0]
+        return mime_type is not None and "audio" in mime_type
+    return True
+ 
+def get_files(current_path,file_list,found_directories=set()) -> None:
+    for file in current_path:
+        file_path=Path(file)
+        if(file_path.is_dir()):
+            #Recursively enter directory if it has not been entered before
+            if(file_path.is_symlink()):
+                file_path=file_path.readlink()
+            if(not file_path in found_directories):
+                found_directories.add(file_path)
+                get_files(file_path.iterdir(),file_list,found_directories)
+        
+        elif(file_path.exists() and is_valid_audio(file_path)):
+            file_list.append(file_path)
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -74,8 +96,10 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+    files=[]
 
-    files = [Path(f) for f in args.files if Path(f).exists()]
+    get_files(args.files,files)
+
     if not files:
         print("Error: no valid audio files found.")
         sys.exit(1)

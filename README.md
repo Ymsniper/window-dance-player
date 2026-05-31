@@ -186,6 +186,7 @@ python -m window_dance_player song.mp3
 
 # Playlist (auto-advances)
 python -m window_dance_player *.mp3
+python -m window_dance_player path/to/playlist/
 
 # With image overlay (warps with Yaris physics)
 python -m window_dance_player --image cover.jpg song.mp3
