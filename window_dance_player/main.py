@@ -54,7 +54,7 @@ def is_valid_audio(file) -> bool:
     valid_extensions=[".mp3",".ogg",".wav",".flac"]
     if(not extension.lower() in valid_extensions):
         mime_type = mimetypes.guess_type(file)[0]
-        return "audio" in mime_type
+        return mime_type is not None and "audio" in mime_type
     return True
  
 def get_files(current_path,file_list) -> None:
